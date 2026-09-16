@@ -14,7 +14,6 @@ export default function App() {
   const [defectDetail, setDefectDetail] = useState("");
   const [quantity, setQuantity] = useState(1);
 
-  // ดึงข้อมูล Realtime จาก Cloud
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "defects"), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
@@ -27,7 +26,6 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // บันทึกข้อมูลขึ้น Cloud
   const handleAddReport = async (e) => {
     e.preventDefault();
     if (!defectDetail) return;
@@ -42,7 +40,6 @@ export default function App() {
     setQuantity(1);
   };
 
-  // ลบข้อมูลบน Cloud
   const handleDelete = async (id) => {
     await deleteDoc(doc(db, "defects", id));
   };
