@@ -14,6 +14,7 @@ export default function App() {
   const [defectDetail, setDefectDetail] = useState("");
   const [quantity, setQuantity] = useState(1);
 
+  // ดึงข้อมูล Realtime จาก Cloud
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "defects"), (snapshot) => {
       const docs = snapshot.docs.map(doc => ({
@@ -26,6 +27,7 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // บันทึกข้อมูลขึ้น Cloud
   const handleAddReport = async (e) => {
     e.preventDefault();
     if (!defectDetail) return;
@@ -40,14 +42,16 @@ export default function App() {
     setQuantity(1);
   };
 
+  // ลบข้อมูลบน Cloud
   const handleDelete = async (id) => {
     await deleteDoc(doc(db, "defects", id));
   };
 
   return (
-    <div style={{ padding: "20px", fontFamily: "sans-serif", maxWidth: "600px", margin: "0 auto" }}>
+    <div style={{ padding: "20px", fontFamily: "sans-serif", maxWidth: "700px", margin: "0 auto" }}>
       <h2>Defect Intelligence System</h2>
       
+      {/* ฟอร์มกรอกข้อมูล */}
       <form onSubmit={handleAddReport} style={{ marginBottom: "20px", display: "flex", gap: "10px" }}>
         <input 
           type="text" 
@@ -68,19 +72,50 @@ export default function App() {
       </form>
 
       <h3>รายการบันทึก (Realtime Sync)</h3>
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {reports.map((item) => (
-          <li key={item.id} style={{ padding: "12px", borderBottom: "1px solid #eee", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span><strong>{item.defectDetail}</strong> - จำนวน: {item.quantity}</span>
-            <button 
-              onClick={() => handleDelete(item.id)}
-              style={{ background: "#ff4d4f", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer" }}
-            >
-              ลบ
-            </button>
-          </li>
-        ))}
-      </ul>
+
+      {/* ตารางแสดงผลรายการ */}
+      <table style={{ width: "100%", borderCollapse: "collapse", border: "1px solid #dcd7cd" }}>
+        <thead>
+          <tr style={{ backgroundColor: "#f9f6f0", borderBottom: "1px solid #dcd7cd" }}>
+            <th style={{ padding: "10px", borderRight: "1px solid #dcd7cd", width: "80px", textAlign: "center" }}>ลำดับที่</th>
+            <th style={{ padding: "10px", borderRight: "1px solid #dcd7cd", textAlign: "left" }}>รายการ</th>
+            <th style={{ padding: "10px", borderRight: "1px solid #dcd7cd", width: "80px", textAlign: "center" }}>จำนวน</th>
+            <th style={{ padding: "10px", width: "80px", textAlign: "center" }}>จัดการ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {reports.length === 0 ? (
+            <tr>
+              <td colSpan="4" style={{ textAlign: "center", padding: "20px", color: "#888" }}>
+                ยังไม่มีข้อมูลรายการ
+              </td>
+            </tr>
+          ) : (
+            reports.map((item, index) => (
+              <tr key={item.id} style={{ borderBottom: "1px solid #dcd7cd" }}>
+                {/* รันลำดับที่อัตโนมัติ */}
+                <td style={{ textAlign: "center", padding: "10px", borderRight: "1px solid #dcd7cd" }}>
+                  {index + 1}
+                </td>
+                <td style={{ padding: "10px", borderRight: "1px solid #dcd7cd" }}>
+                  {item.defectDetail}
+                </td>
+                <td style={{ textAlign: "center", padding: "10px", borderRight: "1px solid #dcd7cd" }}>
+                  {item.quantity}
+                </td>
+                <td style={{ textAlign: "center", padding: "10px" }}>
+                  <button 
+                    onClick={() => handleDelete(item.id)}
+                    style={{ background: "#ff4d4f", color: "#fff", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer" }}
+                  >
+                    ลบ
+                  </button>
+                </td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }
