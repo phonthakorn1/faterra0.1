@@ -1,21 +1,21 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
+import { db } from "./firebase";
+import {
+  collection,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  doc,
+} from "firebase/firestore";
 import {
   LayoutDashboard,
   Boxes,
   FileText,
   Briefcase,
   Plus,
-  Pencil,
-  Trash2,
   X,
-  ArrowDownToLine,
   ArrowUpFromLine,
-  AlertTriangle,
-  Printer,
   TrendingUp,
-  Search,
-  Wrench,
-  Settings,
   Wallet,
   CheckCircle,
 } from "lucide-react";
@@ -87,7 +87,6 @@ const CSS = `
 }
 .ca-nav-btn:hover{ background:var(--navy-soft); color:#fff; }
 .ca-nav-btn.active{ background:var(--amber); color:var(--amber-ink); font-weight:600; }
-.ca-nav-spacer{ flex:1; }
 
 .ca-main{ flex:1; min-width:0; padding:26px 32px 60px; }
 
@@ -111,8 +110,6 @@ const CSS = `
 .ca-card-sub{ font-size:12px; color:var(--muted); margin-top:4px; }
 .ca-card.warn{ border-color:rgba(173,138,50,.5); }
 .ca-card.warn .ca-card-value{ color:var(--amber); }
-.ca-card.bad{ border-color:rgba(179,38,30,.35); }
-.ca-card.bad .ca-card-value{ color:var(--red); }
 .ca-card.good{ border-color:rgba(46,125,91,.35); }
 .ca-card.good .ca-card-value{ color:var(--green); }
 
@@ -130,8 +127,6 @@ const CSS = `
 .ca-btn-primary:hover{ background:var(--amber-dark); color:#fff; }
 .ca-btn-outline{ background:transparent; border-color:var(--border); color:var(--navy); }
 .ca-btn-outline:hover{ background:var(--panel-hover); border-color:var(--amber); }
-.ca-btn-danger{ background:transparent; color:var(--red); border:1px solid var(--red-bg); }
-.ca-btn-danger:hover{ background:var(--red-bg); }
 .ca-btn-sm{ padding:5px 9px; font-size:12.5px; border-radius:5px; }
 
 .ca-table{ width:100%; border-collapse:collapse; font-size:13.5px; }
@@ -142,8 +137,6 @@ const CSS = `
 .ca-empty{ text-align:center; padding:34px 10px; color:var(--muted); }
 
 .ca-badge{ display:inline-flex; align-items:center; gap:4px; padding:3px 9px; border-radius:20px; font-size:11.5px; font-weight:600; }
-.ca-badge.grey{ background:rgba(34,38,43,.06); color:var(--muted); }
-.ca-badge.amber{ background:rgba(173,138,50,.14); color:#8C6F24; }
 .ca-badge.green{ background:var(--green-bg); color:var(--green); }
 .ca-badge.red{ background:var(--red-bg); color:var(--red); }
 
@@ -153,7 +146,6 @@ const CSS = `
   width:100%; padding:8px 10px; border:1px solid var(--border); border-radius:6px;
   font-family:'Sarabun',sans-serif; font-size:13.5px; background:var(--paper); color:var(--text);
 }
-.ca-input:focus, .ca-select:focus{ outline:2px solid var(--amber); border-color:var(--amber); }
 .ca-row{ display:flex; gap:10px; }
 .ca-row > *{ flex:1; }
 
@@ -169,7 +161,6 @@ const CSS = `
 /* Helpers                                                                */
 /* ---------------------------------------------------------------------- */
 
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 const fmtTHB = (n) => new Intl.NumberFormat("th-TH", { style: "currency", currency: "THB" }).format(Number(n) || 0);
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
@@ -192,45 +183,62 @@ function computeJobFinancials(job, txns = [], cashEntries = []) {
 }
 
 /* ---------------------------------------------------------------------- */
-/* Main Application Component                                             */
+/* App Component with Cloud Sync                                          */
 /* ---------------------------------------------------------------------- */
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
 
-  // State เชื่อมโยงทั้งหมด
-  const [stock, setStock] = useState(() => JSON.parse(localStorage.getItem("ca_stock") || "[]"));
-  const [quotes, setQuotes] = useState(() => JSON.parse(localStorage.getItem("ca_quotes") || "[]"));
-  const [jobs, setJobs] = useState(() => JSON.parse(localStorage.getItem("ca_jobs") || "[]"));
-  const [txns, setTxns] = useState(() => JSON.parse(localStorage.getItem("ca_txns") || "[]"));
-  const [cashEntries, setCashEntries] = useState(() => JSON.parse(localStorage.getItem("ca_cash") || "[]"));
+  // Multi-device Cloud State
+  const [stock, setStock] = useState([]);
+  const [quotes, setQuotes] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [txns, setTxns] = useState([]);
+  const [cashEntries, setCashEntries] = useState([]);
 
-  // Modals state
   const [modal, setModal] = useState(null);
 
-  // Sync กับ LocalStorage
-  useEffect(() => localStorage.setItem("ca_stock", JSON.stringify(stock)), [stock]);
-  useEffect(() => localStorage.setItem("ca_quotes", JSON.stringify(quotes)), [quotes]);
-  useEffect(() => localStorage.setItem("ca_jobs", JSON.stringify(jobs)), [jobs]);
-  useEffect(() => localStorage.setItem("ca_txns", JSON.stringify(txns)), [txns]);
-  useEffect(() => localStorage.setItem("ca_cash", JSON.stringify(cashEntries)), [cashEntries]);
+  // Real-time Cloud Listeners (ซิงก์ตรงกันทุกอุปกรณ์ทันทีที่มีการเปลี่ยนแปลง)
+  useEffect(() => {
+    const unsubStock = onSnapshot(collection(db, "stock"), (snap) =>
+      setStock(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })))
+    );
+    const unsubQuotes = onSnapshot(collection(db, "quotes"), (snap) =>
+      setQuotes(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })))
+    );
+    const unsubJobs = onSnapshot(collection(db, "jobs"), (snap) =>
+      setJobs(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })))
+    );
+    const unsubTxns = onSnapshot(collection(db, "txns"), (snap) =>
+      setTxns(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })))
+    );
+    const unsubCash = onSnapshot(collection(db, "cashEntries"), (snap) =>
+      setCashEntries(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })))
+    );
 
-  /* Handlers: Stock */
-  const handleAddStockItem = (e) => {
+    return () => {
+      unsubStock();
+      unsubQuotes();
+      unsubJobs();
+      unsubTxns();
+      unsubCash();
+    };
+  }, []);
+
+  /* Handlers: Multi-device sync actions */
+  const handleAddStockItem = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const newItem = {
-      id: uid(),
+    await addDoc(collection(db, "stock"), {
       name: fd.get("name"),
       qty: Number(fd.get("qty")),
       unitCost: Number(fd.get("unitCost")),
       minQty: Number(fd.get("minQty")),
-    };
-    setStock([...stock, newItem]);
+    });
     setModal(null);
   };
 
-  const handleIssueStock = (e) => {
+  const handleIssueStock = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const itemId = fd.get("itemId");
@@ -240,66 +248,55 @@ export default function App() {
     const item = stock.find((s) => s.id === itemId);
     if (!item || item.qty < qty) return alert("สินค้าในคลังมีไม่พอให้เบิก!");
 
-    // 1. ตัด Stock
-    setStock(stock.map((s) => (s.id === itemId ? { ...s, qty: s.qty - qty } : s)));
+    // 1. ตัด Stock บน Cloud
+    await updateDoc(doc(db, "stock", itemId), { qty: item.qty - qty });
 
-    // 2. บันทึก Transaction การเบิกเข้า Job
-    const newTxn = {
-      id: uid(),
+    // 2. บันทึก Transaction บน Cloud
+    await addDoc(collection(db, "txns"), {
       type: "issue",
       itemId,
       jobId,
       qty,
       unitCost: item.unitCost,
       date: todayISO(),
-    };
-    setTxns([...txns, newTxn]);
+    });
     setModal(null);
   };
 
-  /* Handlers: Quotations -> Jobs */
-  const handleAddQuote = (e) => {
+  const handleAddQuote = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const newQ = {
-      id: uid(),
+    await addDoc(collection(db, "quotes"), {
       title: fd.get("title"),
       client: fd.get("client"),
       amount: Number(fd.get("amount")),
       costEstimate: Number(fd.get("costEstimate")),
       status: "pending",
-    };
-    setQuotes([...quotes, newQ]);
+    });
     setModal(null);
   };
 
-  const convertQuoteToJob = (q) => {
-    const newJob = {
-      id: uid(),
+  const convertQuoteToJob = async (q) => {
+    await addDoc(collection(db, "jobs"), {
       name: q.title,
       client: q.client,
       revenue: q.amount,
       budget: q.costEstimate,
       status: "in_progress",
-    };
-    setJobs([...jobs, newJob]);
-    setQuotes(quotes.map((item) => (item.id === q.id ? { ...item, status: "approved" } : item)));
-    alert(`อนุมัติใบเสนอราคาและสร้างโครงการ "${q.title}" เรียบร้อยแล้ว!`);
+    });
+    await updateDoc(doc(db, "quotes", q.id), { status: "approved" });
   };
 
-  /* Handlers: Cash Transactions */
-  const handleAddCash = (e) => {
+  const handleAddCash = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.target);
-    const newEntry = {
-      id: uid(),
+    await addDoc(collection(db, "cashEntries"), {
       type: fd.get("type"),
       jobId: fd.get("jobId") || null,
       amount: Number(fd.get("amount")),
       note: fd.get("note"),
       date: todayISO(),
-    };
-    setCashEntries([...cashEntries, newEntry]);
+    });
     setModal(null);
   };
 
@@ -307,12 +304,11 @@ export default function App() {
     <>
       <style>{CSS}</style>
       <div className="ca-root">
-        {/* Sidebar Nav */}
         <aside className="ca-sidebar">
           <div className="ca-brand">
             <div>
-              <div className="ca-brand-name">FATERRA</div>
-              <div className="ca-brand-sub">ERP Integrated System</div>
+              <div className="ca-brand-name">FATERRA Cloud</div>
+              <div className="ca-brand-sub">Multi-Device Live Sync</div>
             </div>
           </div>
           <nav className="ca-nav">
@@ -334,19 +330,17 @@ export default function App() {
           </nav>
         </aside>
 
-        {/* Main Contents */}
         <main className="ca-main">
-          {/* TAB 1: DASHBOARD */}
           {activeTab === "dashboard" && (
             <div>
               <div className="ca-titleblock">
                 <div className="ca-tb-main">
-                  <div className="ca-tb-eyebrow">Overview Dashboard</div>
-                  <div className="ca-tb-title">ระบบบริหารภาพรวม</div>
+                  <div className="ca-tb-eyebrow">Real-time Overview</div>
+                  <div className="ca-tb-title">ระบบบริหารภาพรวม (ซิงก์ Cloud)</div>
                 </div>
                 <div className="ca-tb-fields">
                   <div className="ca-tb-field">
-                    <div className="ca-tb-flabel">งานที่ดำเนินการ</div>
+                    <div className="ca-tb-flabel">งานกำลังทำ</div>
                     <div className="ca-tb-fvalue">{jobs.filter((j) => j.status === "in_progress").length}</div>
                   </div>
                 </div>
@@ -361,7 +355,7 @@ export default function App() {
                 <div className="ca-card warn">
                   <div className="ca-card-label">พัสดุใกล้หมด</div>
                   <div className="ca-card-value">{stock.filter((i) => i.qty <= i.minQty).length}</div>
-                  <div className="ca-card-sub">ต่ำกว่าจุดเตือนซื้อ</div>
+                  <div className="ca-card-sub">ต่ำกว่าจุดสั่งซื้อ</div>
                 </div>
                 <div className="ca-card good">
                   <div className="ca-card-label">กำไรรวมโครงการ (ตามจริง)</div>
@@ -393,11 +387,10 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 2: STOCK */}
           {activeTab === "stock" && (
             <div className="ca-panel">
               <div className="ca-panel-head">
-                <div className="ca-panel-title"><Boxes size={18} /> รายการพัสดุในคลัง</div>
+                <div className="ca-panel-title"><Boxes size={18} /> รายการพัสดุในคลัง (Cloud Sync)</div>
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="ca-btn ca-btn-outline" onClick={() => setModal("issueStock")}><ArrowUpFromLine size={16} /> เบิกวัสดุเข้างาน</button>
                   <button className="ca-btn ca-btn-primary" onClick={() => setModal("addStock")}><Plus size={16} /> เพิ่มพัสดุใหม่</button>
@@ -440,7 +433,6 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: QUOTATIONS */}
           {activeTab === "quotes" && (
             <div className="ca-panel">
               <div className="ca-panel-head">
@@ -486,7 +478,6 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 4: JOBS & FINANCIALS */}
           {activeTab === "jobs" && (
             <div className="ca-panel">
               <div className="ca-panel-head">
@@ -531,7 +522,6 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 5: CASH & EXPENSE */}
           {activeTab === "cash" && (
             <div className="ca-panel">
               <div className="ca-panel-head">
@@ -595,7 +585,7 @@ export default function App() {
               <div className="ca-field"><label>จุดเตือนซื้อเติม (Min Qty)</label><input type="number" name="minQty" className="ca-input" defaultValue="5" required /></div>
             </div>
             <div className="ca-modal-foot">
-              <button type="submit" className="ca-btn ca-btn-primary">บันทึก</button>
+              <button type="submit" className="ca-btn ca-btn-primary">บันทึกเข้า Cloud</button>
             </div>
           </form>
         </div>
@@ -646,7 +636,7 @@ export default function App() {
               </div>
             </div>
             <div className="ca-modal-foot">
-              <button type="submit" className="ca-btn ca-btn-primary">บันทึก</button>
+              <button type="submit" className="ca-btn ca-btn-primary">บันทึกเข้า Cloud</button>
             </div>
           </form>
         </div>
@@ -678,7 +668,7 @@ export default function App() {
               <div className="ca-field"><label>จำนวนเงิน (บาท)</label><input type="number" name="amount" className="ca-input" required /></div>
             </div>
             <div className="ca-modal-foot">
-              <button type="submit" className="ca-btn ca-btn-primary">บันทึก</button>
+              <button type="submit" className="ca-btn ca-btn-primary">บันทึกเข้า Cloud</button>
             </div>
           </form>
         </div>
