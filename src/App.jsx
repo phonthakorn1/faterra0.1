@@ -3183,7 +3183,7 @@ function buildQuotePrintHTML(quote, settings = {}) {
     }</div></div>
   </div>
   <table>
-    <thead><tr><th>#</th><th>รายการ</th><th>จำนวน</th><th>หน่วย</th><th>ราคาต่อหน่วย</th><th>รวม</th></tr></thead>
+    <thead><tr><th>ลำดับที่</th><th>รายการ</th><th>จำนวน</th><th>หน่วย</th><th>ราคาต่อหน่วย</th><th>รวม</th></tr></thead>
     <tbody>${rows}</tbody>
   </table>
   <div class="totals">
