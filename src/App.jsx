@@ -3407,7 +3407,7 @@ function QuotePrintView({ quote, settings, onClose }) {
                   textAlign: 'center',
                 }}
               >
-                #
+                ลำดับที่
               </th>
               <th
                 style={{
