@@ -13,5 +13,4 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-//  จุดสำคัญที่สุด: ต้องมีคำว่า export อยู่ข้างหน้า const db ครับ
 export const db = getFirestore(app);
