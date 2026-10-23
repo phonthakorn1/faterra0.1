@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+/__codex_browser_temporary_files__/b1986de0-2664-4d09-adc3-2c1ed382545d/App.jsximport React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   LayoutDashboard,
   Boxes,
@@ -3805,12 +3805,22 @@ function JobsView({
 }
 
 function JobForm({ job, stock, onCancel, onSave }) {
-  const [j, setJ] = useState(job);
+  const [j, setJ] = useState({
+    ...job,
+    workDays: job.workDays ?? '',
+    budgetItems: (job.budgetItems || []).map((b) => ({
+      ...b,
+      actualQty: b.actualQty ?? '',
+      actualUnit: b.actualUnit ?? defaultBudgetUnit(b.category),
+      actualUnitCost: b.actualUnitCost ?? '',
+    })),
+  });
+
   function addBudgetItem() {
-    setJ({
-      ...j,
+    setJ((prev) => ({
+      ...prev,
       budgetItems: [
-        ...j.budgetItems,
+        ...prev.budgetItems,
         {
           id: uid(),
           category: BUDGET_CATEGORIES[0],
@@ -3818,21 +3828,51 @@ function JobForm({ job, stock, onCancel, onSave }) {
           budgetedCost: 0,
           actualCost: 0,
           stockId: null,
+          actualQty: '',
+          actualUnit: defaultBudgetUnit(BUDGET_CATEGORIES[0]),
+          actualUnitCost: '',
         },
       ],
-    });
+    }));
   }
+
   function updateBudgetItem(id, patch) {
-    setJ({
-      ...j,
-      budgetItems: j.budgetItems.map((b) =>
-        b.id === id ? { ...b, ...patch } : b
-      ),
-    });
+    setJ((prev) => ({
+      ...prev,
+      budgetItems: prev.budgetItems.map((b) => {
+        if (b.id !== id) return b;
+        const next = { ...b, ...patch };
+        // For costs linked to warehouse issues, the stock transaction is the source
+        // of actual cost. Do not add a second copy of that cost here.
+        if (next.stockId) {
+          next.actualCost = 0;
+        } else if (
+          Object.prototype.hasOwnProperty.call(patch, 'actualQty') ||
+          Object.prototype.hasOwnProperty.call(patch, 'actualUnitCost')
+        ) {
+          next.actualCost =
+            (Number(next.actualQty) || 0) * (Number(next.actualUnitCost) || 0);
+        }
+        if (Object.prototype.hasOwnProperty.call(patch, 'category') &&
+            !Object.prototype.hasOwnProperty.call(patch, 'actualUnit')) {
+          next.actualUnit = defaultBudgetUnit(next.category);
+        }
+        return next;
+      }),
+    }));
   }
+
   function removeBudgetItem(id) {
-    setJ({ ...j, budgetItems: j.budgetItems.filter((b) => b.id !== id) });
+    setJ((prev) => ({
+      ...prev,
+      budgetItems: prev.budgetItems.filter((b) => b.id !== id),
+    }));
   }
+
+  const actualBudgetItemsTotal = j.budgetItems.reduce(
+    (sum, b) => sum + (Number(b.actualCost) || 0),
+    0
+  );
 
   return (
     <Modal
@@ -3897,6 +3937,30 @@ function JobForm({ job, stock, onCancel, onSave }) {
           </select>
         </Field>
       </div>
+      <div className="ca-row">
+        <Field
+          label="จำนวนวันที่ทำงานจริง"
+          hint="บันทึกจำนวนวันที่ทีมเข้าทำงาน เพื่อใช้เทียบงานครั้งต่อไป"
+        >
+          <input
+            type="number"
+            min="0"
+            step="0.5"
+            className="ca-input"
+            value={j.workDays}
+            onChange={(e) => setJ({ ...j, workDays: e.target.value })}
+            placeholder="เช่น 3"
+          />
+        </Field>
+        <Field label="หมายเหตุหน้างาน">
+          <input
+            className="ca-input"
+            value={j.workNotes || ''}
+            onChange={(e) => setJ({ ...j, workNotes: e.target.value })}
+            placeholder="เช่น ช่าง 2 คน / ฝนตก 1 วัน"
+          />
+        </Field>
+      </div>
       <div className="ca-divider" />
       <div
         style={{
@@ -3918,103 +3982,158 @@ function JobForm({ job, stock, onCancel, onSave }) {
         </button>
       </div>
       <div className="ca-hint" style={{ marginBottom: 8 }}>
-        ต้นทุนวัสดุที่เบิกจากคลังสินค้าจะถูกคำนวณอัตโนมัติ ไม่ต้องกรอกซ้ำที่นี่
+        กรอกจำนวนที่ใช้จริง หน่วย และราคาต่อหน่วย ระบบคำนวณต้นทุนจริงให้อัตโนมัติ
+        เช่น วัสดุ 12 แผ่น × 325 บาท หรือค่าแรง 3 วัน × 1,000 บาท/วัน
+        หากเชื่อมกับสต๊อก ต้นทุนจะนับจากรายการเบิกคลังเพื่อไม่ให้ซ้ำ
       </div>
       {j.budgetItems.length === 0 ? (
         <EmptyState icon={ClipboardList} text="ยังไม่มีรายการต้นทุน" />
       ) : (
-        <table className="ca-table">
-          <thead>
-            <tr>
-              <th>หมวด</th>
-              <th>รายละเอียด</th>
-              <th style={{ width: 150 }}>เชื่อมกับสต๊อค</th>
-              <th style={{ width: 110 }}>งบประมาณ</th>
-              <th style={{ width: 110 }}>ตามจริง</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {j.budgetItems.map((b) => (
-              <tr key={b.id}>
-                <td>
-                  <select
-                    className="ca-select"
-                    value={b.category}
-                    onChange={(e) =>
-                      updateBudgetItem(b.id, { category: e.target.value })
-                    }
-                  >
-                    {BUDGET_CATEGORIES.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <input
-                    className="ca-input"
-                    value={b.description}
-                    onChange={(e) =>
-                      updateBudgetItem(b.id, { description: e.target.value })
-                    }
-                  />
-                </td>
-                <td>
-                  <select
-                    className="ca-select"
-                    value={b.stockId || ''}
-                    onChange={(e) =>
-                      updateBudgetItem(b.id, {
-                        stockId: e.target.value || null,
-                      })
-                    }
-                  >
-                    <option value="">-- ไม่เชื่อม --</option>
-                    {stock.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    step="any"
-                    className="ca-input ca-num"
-                    value={b.budgetedCost}
-                    onChange={(e) =>
-                      updateBudgetItem(b.id, { budgetedCost: e.target.value })
-                    }
-                  />
-                </td>
-                <td>
-                  <input
-                    type="number"
-                    step="any"
-                    className="ca-input ca-num"
-                    value={b.actualCost}
-                    onChange={(e) =>
-                      updateBudgetItem(b.id, { actualCost: e.target.value })
-                    }
-                  />
-                </td>
-                <td>
-                  <button
-                    type="button"
-                    className="ca-line-remove"
-                    onClick={() => removeBudgetItem(b.id)}
-                  >
-                    <X size={15} />
-                  </button>
-                </td>
+        <div style={{ overflowX: 'auto' }}>
+          <table className="ca-table" style={{ minWidth: 1050 }}>
+            <thead>
+              <tr>
+                <th>หมวด</th>
+                <th>รายละเอียด</th>
+                <th style={{ minWidth: 140 }}>เชื่อมกับสต๊อก</th>
+                <th style={{ minWidth: 100 }}>งบประมาณ (บาท)</th>
+                <th style={{ minWidth: 95 }}>จำนวนจริง</th>
+                <th style={{ minWidth: 100 }}>หน่วย</th>
+                <th style={{ minWidth: 115 }}>ราคา/หน่วยจริง</th>
+                <th style={{ minWidth: 110 }}>ต้นทุนจริง (บาท)</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {j.budgetItems.map((b) => (
+                <tr key={b.id}>
+                  <td>
+                    <select
+                      className="ca-select"
+                      value={b.category}
+                      onChange={(e) =>
+                        updateBudgetItem(b.id, { category: e.target.value })
+                      }
+                    >
+                      {BUDGET_CATEGORIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      className="ca-input"
+                      value={b.description}
+                      onChange={(e) =>
+                        updateBudgetItem(b.id, { description: e.target.value })
+                      }
+                      placeholder="ชื่อวัสดุ/ค่าแรง"
+                    />
+                  </td>
+                  <td>
+                    <select
+                      className="ca-select"
+                      value={b.stockId || ''}
+                      onChange={(e) =>
+                        updateBudgetItem(b.id, {
+                          stockId: e.target.value || null,
+                          actualCost: e.target.value ? 0 : (
+                            (Number(b.actualQty) || 0) * (Number(b.actualUnitCost) || 0)
+                          ),
+                        })
+                      }
+                    >
+                      <option value="">-- ไม่เชื่อม --</option>
+                      {stock.map((s) => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="ca-input ca-num"
+                      value={b.budgetedCost ?? 0}
+                      onChange={(e) =>
+                        updateBudgetItem(b.id, { budgetedCost: e.target.value })
+                      }
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="ca-input ca-num"
+                      value={b.actualQty}
+                      disabled={Boolean(b.stockId)}
+                      onChange={(e) =>
+                        updateBudgetItem(b.id, { actualQty: e.target.value })
+                      }
+                      placeholder="0"
+                    />
+                  </td>
+                  <td>
+                    <select
+                      className="ca-select"
+                      value={b.actualUnit || defaultBudgetUnit(b.category)}
+                      onChange={(e) =>
+                        updateBudgetItem(b.id, { actualUnit: e.target.value })
+                      }
+                    >
+                      {BUDGET_UNITS.map((u) => (
+                        <option key={u} value={u}>{u}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="ca-input ca-num"
+                      value={b.actualUnitCost}
+                      disabled={Boolean(b.stockId)}
+                      onChange={(e) =>
+                        updateBudgetItem(b.id, { actualUnitCost: e.target.value })
+                      }
+                      placeholder="0"
+                    />
+                  </td>
+                  <td className="ca-num">
+                    {b.stockId
+                      ? 'คิดจากสต๊อก'
+                      : fmtNum(
+                          (Number(b.actualQty) || 0) *
+                          (Number(b.actualUnitCost) || 0) ||
+                          Number(b.actualCost) || 0
+                        )}
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="ca-line-remove"
+                      onClick={() => removeBudgetItem(b.id)}
+                      title="ลบรายการ"
+                    >
+                      <X size={15} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
+      <div className="ca-divider" />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 24, flexWrap: 'wrap' }}>
+        <div>
+          <div className="ca-hint">รวมต้นทุนจริงที่กรอกในรายการนี้</div>
+          <strong>{fmtTHB(actualBudgetItemsTotal)}</strong>
+        </div>
+      </div>
     </Modal>
   );
 }
@@ -4162,6 +4281,23 @@ function JobDetail({
         </div>
       </div>
 
+      <div className="ca-panel" style={{ marginBottom: 18 }}>
+        <div className="ca-panel-body" style={{ display: 'flex', gap: 24, flexWrap: 'wrap' }}>
+          <div>
+            <div className="ca-card-label">จำนวนวันที่ทำงานจริง</div>
+            <div className="ca-card-value" style={{ fontSize: 18 }}>
+              {job.workDays !== '' && job.workDays != null ? `${fmtNum(job.workDays)} วัน` : 'ยังไม่ได้บันทึก'}
+            </div>
+          </div>
+          {job.workNotes && (
+            <div style={{ flex: 1, minWidth: 180 }}>
+              <div className="ca-card-label">หมายเหตุหน้างาน</div>
+              <div>{job.workNotes}</div>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="ca-panel-title" style={{ fontSize: 14, marginBottom: 8 }}>
         รายการต้นทุน (งบประมาณ vs ตามจริง)
       </div>
@@ -4170,6 +4306,9 @@ function JobDetail({
           <tr>
             <th>หมวด</th>
             <th>รายละเอียด</th>
+            <th>จำนวนจริง</th>
+            <th>หน่วย</th>
+            <th>ราคา/หน่วย</th>
             <th>งบประมาณ</th>
             <th>ตามจริง</th>
             <th>ผลต่าง</th>
@@ -4177,8 +4316,12 @@ function JobDetail({
         </thead>
         <tbody>
           {job.budgetItems.map((b) => {
-            const diff =
-              (Number(b.budgetedCost) || 0) - (Number(b.actualCost) || 0);
+            const linkedActual = b.stockId
+              ? materialTxns
+                  .filter((t) => t.stockId === b.stockId)
+                  .reduce((sum, t) => sum + (Number(t.qty) || 0) * (Number(t.unitCost) || 0), 0)
+              : (Number(b.actualCost) || 0);
+            const diff = (Number(b.budgetedCost) || 0) - linkedActual;
             const linkedStock = b.stockId
               ? (stock || []).find((s) => s.id === b.stockId)
               : null;
@@ -4205,8 +4348,15 @@ function JobDetail({
                     </div>
                   )}
                 </td>
+                <td className="ca-num">
+                  {b.stockId ? '-' : (b.actualQty !== '' && b.actualQty != null ? fmtNum(b.actualQty) : '-')}
+                </td>
+                <td>{b.stockId ? '-' : (b.actualUnit || '-')}</td>
+                <td className="ca-num">
+                  {b.stockId ? '-' : (b.actualUnitCost !== '' && b.actualUnitCost != null ? fmtTHB(b.actualUnitCost) : '-')}
+                </td>
                 <td className="ca-num">{fmtTHB(b.budgetedCost)}</td>
-                <td className="ca-num">{fmtTHB(b.actualCost)}</td>
+                <td className="ca-num">{fmtTHB(linkedActual)}</td>
                 <td
                   className="ca-num"
                   style={{ color: diff >= 0 ? 'var(--green)' : 'var(--red)' }}
@@ -4222,6 +4372,9 @@ function JobDetail({
             </td>
             <td>เบิกจากสต๊อคจริง {materialTxns.length} รายการ</td>
             <td className="ca-num">-</td>
+            <td>-</td>
+            <td className="ca-num">-</td>
+            <td className="ca-num">-</td>
             <td className="ca-num">{fmtTHB(f.materialActual)}</td>
             <td className="ca-num">-</td>
           </tr>
@@ -4231,6 +4384,9 @@ function JobDetail({
                 <Badge tone="red">รายจ่าย (บัญชี)</Badge>
               </td>
               <td>เชื่อมจากเมนูรายรับ-รายจ่าย</td>
+              <td className="ca-num">-</td>
+              <td>-</td>
+              <td className="ca-num">-</td>
               <td className="ca-num">-</td>
               <td className="ca-num">{fmtTHB(f.linkedExpense)}</td>
               <td className="ca-num">-</td>
