@@ -1,4 +1,4 @@
-/__codex_browser_temporary_files__/b1986de0-2664-4d09-adc3-2c1ed382545d/App.jsximport React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   LayoutDashboard,
   Boxes,
