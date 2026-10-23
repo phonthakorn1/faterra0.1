@@ -318,21 +318,10 @@ const EXPENSE_CATEGORIES = [
   'ค่าซ่อมบำรุง',
   'ค่าใช้จ่ายอื่นๆ',
 ];
-const UNITS = [
-  'ชิ้น',
-  'อัน',
-  'ถุง',
-  'ลิตร',
-  'กก.',
-  'ม.',
-  'ม2',
-  'ม3',
-  'เส้น',
-  'แผ่น',
-  'ม้วน',
-  'คัน',
-  'งาน',
-];
+const UNITS = ["ชิ้น", "อัน", "ถุง", "ลิตร", "กก.", "ม.", "ม2", "ม3", "เส้น", "แผ่น", "ม้วน", "คัน", "งาน"];
+// Optional quantity/unit on job cost lines (e.g. labor 5 วัน, material 20 ถุง). Reference only — amounts are still typed in as before.
+const BUDGET_UNITS = ["วัน", "ชั่วโมง", "คน-วัน", "ชิ้น", "อัน", "ถุง", "ลิตร", "กก.", "ม.", "ม2", "ม3", "เส้น", "แผ่น", "ม้วน", "คัน", "งาน"];
+const defaultBudgetUnit = (category) => (category === "ค่าแรง" ? "วัน" : "ชิ้น");
 
 const EQUIPMENT_CATEGORIES = [
   'เครื่องมือไฟฟ้า',
