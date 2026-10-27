@@ -1,3 +1,8 @@
+    storageSave(STORAGE_KEYS.txns, next);
+  }, []);
+  const saveEquipment = useCallback((next) => {
+    setEquipment(next);
+    storageSave(STORAGE_KEYS.equipment, next);
   }, []);
   const saveEquipTxns = useCallback((next) => {
     setEquipTxns(next);
