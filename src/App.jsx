@@ -4415,21 +4415,39 @@ function JobDetail({
             <td className="ca-num">-</td>
             <td>-</td>
           </tr>
-          {f.linkedExpense > 0 && (
-            <tr>
-              <td>
-                <Badge tone="red">รายจ่าย (บัญชี)</Badge>
-              </td>
-              <td>เชื่อมจากเมนูรายรับ-รายจ่าย</td>
-              <td className="ca-num">-</td>
-              <td>-</td>
-              <td className="ca-num">-</td>
-              <td className="ca-num">-</td>
-              <td className="ca-num">{fmtTHB(f.linkedExpense)}</td>
-              <td className="ca-num">-</td>
-              <td>-</td>
-            </tr>
-          )}
+          {/* แสดงรายการเงินสดที่ผูกกับงานเป็นรายบรรทัดในตารางกำไร-ขาดทุน
+              ดึงจาก cashEntries โดยตรง ไม่สร้าง budgetItems ซ้ำ จึงแก้ไข/ลบแล้วอัปเดตทันที */}
+          {linkedCash.map((e) => {
+            const isIncome = e.type === 'income';
+            const amount = Number(e.amount) || 0;
+            return (
+              <tr key={`cash-${e.id}`} style={{ background: isIncome ? 'rgba(46,125,91,.04)' : 'rgba(179,38,30,.03)' }}>
+                <td>
+                  <Badge tone={isIncome ? 'green' : 'red'}>
+                    {isIncome ? 'รายรับ' : 'รายจ่าย'}
+                  </Badge>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
+                    {e.category || 'ไม่ระบุหมวด'}
+                  </div>
+                </td>
+                <td>
+                  {e.description || '-'}
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
+                    วันที่ {fmtDate(e.date)}
+                  </div>
+                </td>
+                <td className="ca-num">-</td>
+                <td>-</td>
+                <td className="ca-num">-</td>
+                <td className="ca-num">-</td>
+                <td className="ca-num" style={{ color: isIncome ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>
+                  {isIncome ? '+' : '-'}{fmtTHB(amount)}
+                </td>
+                <td className="ca-num">-</td>
+                <td style={{ minWidth: 170, whiteSpace: 'pre-wrap' }}>{e.note || 'เชื่อมจากเมนูรายรับ-รายจ่าย'}</td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
 
