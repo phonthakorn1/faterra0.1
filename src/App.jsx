@@ -333,6 +333,125 @@ const CSS = `
   .ca-panel-body:has(>.ca-table), .ca-panel-body:has(table){ overflow-x:auto; }
 }
 
+
+/* ---- Fastwork-inspired visual layer: CSS only; application logic and data untouched ---- */
+.ca-root{
+  --fw-surface:#fff;
+  --fw-canvas:#F7F8FA;
+  --fw-stroke:#E7E9EE;
+  --fw-muted:#737987;
+  background:var(--fw-canvas);
+  color:#252936;
+  gap:0;
+}
+.ca-sidebar{
+  background:#fff;
+  color:#303442;
+  border-right:1px solid var(--fw-stroke);
+  box-shadow:2px 0 18px rgba(28,33,38,.035);
+}
+.ca-brand{border-bottom:1px solid var(--fw-stroke);}
+.ca-brand-name{color:#20232D;}
+.ca-brand-sub{color:#858B98;}
+.ca-nav-btn{
+  color:#606675;
+  border:1px solid transparent;
+  border-radius:10px;
+  transition:background .18s ease,color .18s ease,border-color .18s ease,transform .18s ease;
+}
+.ca-nav-btn:hover{
+  color:#252936;
+  background:#F5F6F8;
+  border-color:#ECEEF2;
+  transform:translateX(2px);
+}
+.ca-nav-btn.active{
+  color:var(--amber-ink);
+  background:rgba(173,138,50,.13);
+  border-color:rgba(173,138,50,.2);
+  box-shadow:none;
+}
+.ca-nav-foot{color:#9297A2;border-top-color:var(--fw-stroke);}
+.ca-main{background:var(--fw-canvas);}
+.ca-titleblock{
+  border:1px solid var(--fw-stroke);
+  border-radius:16px;
+  box-shadow:0 3px 14px rgba(25,32,48,.035);
+}
+.ca-tb-main{border-right-color:var(--fw-stroke);}
+.ca-tb-eyebrow{color:#858B98;}
+.ca-tb-title{color:#252936;}
+.ca-tb-field{border-right-color:var(--fw-stroke);}
+.ca-tb-flabel{color:#858B98;}
+.ca-cards{gap:18px;}
+.ca-card{
+  border:1px solid var(--fw-stroke);
+  border-radius:16px;
+  box-shadow:0 3px 14px rgba(25,32,48,.035);
+}
+.ca-card:hover{border-color:#D9DDE5;box-shadow:0 8px 24px rgba(25,32,48,.075);}
+.ca-card-label{color:#737987;}
+.ca-card-value{color:#252936;}
+.ca-panel{
+  border:1px solid var(--fw-stroke);
+  border-radius:16px;
+  box-shadow:0 3px 14px rgba(25,32,48,.035);
+}
+.ca-panel-head{border-bottom:1px solid var(--fw-stroke);}
+.ca-panel-title{color:#252936;}
+.ca-btn{
+  border-radius:10px;
+  transition:transform .16s ease,box-shadow .16s ease,background .16s ease;
+}
+.ca-btn-primary{box-shadow:0 3px 8px rgba(173,138,50,.14);}
+.ca-btn-primary:hover{box-shadow:0 5px 14px rgba(173,138,50,.22);transform:translateY(-1px);}
+.ca-btn-outline{background:#fff;border-color:#DDE1E8;color:#424856;}
+.ca-btn-outline:hover{background:#F8F9FB;border-color:var(--amber);}
+.ca-btn-danger{border-radius:9px;}
+.ca-table th{
+  color:#737987;
+  background:#F7F8FA;
+  border-bottom:1px solid var(--fw-stroke);
+  letter-spacing:.025em;
+}
+.ca-table td{border-bottom-color:#EEF0F4;}
+.ca-table tbody tr:hover{background:#F8F9FB;}
+.ca-badge{border-radius:8px;}
+.ca-input,.ca-select,textarea.ca-input{
+  background:#fff;
+  border-color:#DDE1E8;
+  border-radius:10px;
+  color:#252936;
+  transition:border-color .15s ease,box-shadow .15s ease;
+}
+.ca-input:focus,.ca-select:focus,textarea.ca-input:focus{
+  outline:none;
+  border-color:var(--amber);
+  box-shadow:0 0 0 3px rgba(173,138,50,.13);
+}
+.ca-search input{background:#fff;}
+.ca-tabs{border-bottom-color:var(--fw-stroke);}
+.ca-tab{color:#737987;}
+.ca-tab.active{color:#252936;border-bottom-color:var(--amber);}
+.ca-modal-backdrop{backdrop-filter:blur(4px);background:rgba(24,28,38,.46);}
+.ca-modal{border:1px solid var(--fw-stroke);border-radius:18px;}
+.ca-modal-head,.ca-modal-foot{border-color:var(--fw-stroke);}
+.ca-modal-title{color:#252936;}
+.ca-photo-thumb,.ca-photo-add{border-radius:12px;}
+.ca-empty{color:#737987;}
+.ca-divider{background:var(--fw-stroke);}
+.ca-hint{color:#858B98;}
+@media (max-width:1100px){
+  .ca-sidebar{width:220px;}
+}
+@media (max-width:760px){
+  .ca-sidebar{border-right:0;border-bottom:1px solid var(--fw-stroke);box-shadow:0 3px 12px rgba(25,32,48,.04);}
+  .ca-nav-btn:hover{transform:none;}
+  .ca-main{background:var(--fw-canvas);}
+  .ca-titleblock,.ca-card,.ca-panel{border-radius:13px;}
+  .ca-tb-field{border-right:1px solid var(--fw-stroke);}
+  .ca-tb-field:last-child{border-right:0;}
+}
 `;
 
 /* ---------------------------------------------------------------------- */
