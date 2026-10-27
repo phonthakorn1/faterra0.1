@@ -247,6 +247,90 @@ const CSS = `
   .ca-table thead{ display:table-header-group; }
   .ca-table tr{ break-inside:avoid; }
 }
+
+/* ---- UI refresh inspired by Fastwork: spacious cards, rounded surfaces, clearer hierarchy ---- */
+/* Presentation-only overrides: retain existing theme tokens, component structure and handlers. */
+.ca-root{ background:var(--paper); font-size:14px; line-height:1.55; }
+.ca-sidebar{ width:244px; padding:24px 16px; position:sticky; top:0; height:100vh; overflow-y:auto; box-shadow:4px 0 22px rgba(15,13,11,.06); }
+.ca-brand{ padding:0 8px 22px; margin-bottom:20px; }
+.ca-brand-mark{ width:36px; height:36px; }
+.ca-brand-name{ font-size:17px; }
+.ca-brand-sub{ font-size:10.5px; }
+.ca-nav{ gap:5px; }
+.ca-nav-btn{ padding:11px 12px; border-radius:10px; font-size:13.5px; }
+.ca-nav-btn svg{ flex-shrink:0; }
+.ca-nav-btn.active{ box-shadow:0 4px 12px rgba(173,138,50,.18); }
+.ca-nav-foot{ line-height:1.7; }
+.ca-main{ padding:30px clamp(18px,3vw,44px) 64px; max-width:1800px; margin:0 auto; width:100%; }
+.ca-titleblock{ border-radius:14px; margin-bottom:24px; box-shadow:0 2px 10px rgba(15,13,11,.025); }
+.ca-tb-main{ padding:19px 22px; }
+.ca-tb-eyebrow{ letter-spacing:.08em; font-size:11px; }
+.ca-tb-title{ font-size:24px; }
+.ca-tb-field{ padding:14px 18px; min-width:120px; display:flex; flex-direction:column; justify-content:center; }
+.ca-tb-flabel{ font-size:10px; letter-spacing:.05em; }
+.ca-tb-fvalue{ font-size:15px; }
+.ca-cards{ gap:16px; margin-bottom:24px; }
+.ca-card{ border-radius:14px; padding:19px 20px; box-shadow:0 2px 10px rgba(15,13,11,.025); transition:transform .16s ease, box-shadow .16s ease; }
+.ca-card:hover{ transform:translateY(-2px); box-shadow:0 8px 22px rgba(15,13,11,.06); }
+.ca-card-label{ font-size:11px; letter-spacing:.035em; margin-bottom:10px; }
+.ca-card-value{ font-size:24px; line-height:1.35; }
+.ca-panel{ border-radius:14px; margin-bottom:22px; overflow:hidden; box-shadow:0 2px 10px rgba(15,13,11,.025); }
+.ca-panel-head{ padding:16px 20px; gap:12px; }
+.ca-panel-title{ font-size:16px; }
+.ca-panel-body{ padding:20px; }
+.ca-btn{ border-radius:9px; padding:9px 15px; }
+.ca-btn-sm{ border-radius:8px; }
+.ca-icon-btn{ border-radius:8px; }
+.ca-table{ font-size:13.5px; }
+.ca-table th{ padding:12px 12px; font-size:10.5px; background:rgba(243,241,236,.62); }
+.ca-table td{ padding:12px; border-bottom-color:rgba(44,33,25,.09); }
+.ca-table tbody tr{ transition:background .12s ease; }
+.ca-badge{ padding:4px 10px; }
+.ca-input,.ca-select,textarea.ca-input{ border-radius:9px; padding:10px 12px; background:#fff; }
+.ca-field{ margin-bottom:16px; }
+.ca-field label{ margin-bottom:7px; }
+.ca-modal{ border-radius:16px; box-shadow:0 24px 70px rgba(0,0,0,.24); }
+.ca-modal-head{ padding:18px 22px; }
+.ca-modal-body{ padding:22px; }
+.ca-modal-foot{ padding:16px 22px; }
+.ca-toolbar{ gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+.ca-search{ max-width:360px; }
+.ca-search input{ border-radius:10px; }
+.ca-tabs{ gap:12px; }
+.ca-tab{ padding:10px 8px; }
+.ca-tab.active{ font-weight:700; }
+.ca-photo-thumb,.ca-photo-add{ border-radius:10px; }
+.ca-empty{ padding:44px 14px; }
+
+@media (max-width:1100px){
+  .ca-sidebar{ width:220px; }
+  .ca-main{ padding:22px 20px 48px; }
+  .ca-tb-field{ min-width:100px; padding:12px; }
+  .ca-cards{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:760px){
+  .ca-root{ display:block; }
+  .ca-sidebar{ position:relative; width:100%; height:auto; min-height:0; padding:12px 14px; }
+  .ca-brand{ padding:0 4px 12px; margin-bottom:10px; }
+  .ca-nav{ flex-direction:row; overflow-x:auto; padding-bottom:4px; }
+  .ca-nav-btn{ flex:0 0 auto; white-space:nowrap; padding:9px 11px; }
+  .ca-nav-spacer,.ca-nav-foot{ display:none; }
+  .ca-main{ padding:18px 12px 36px; }
+  .ca-titleblock{ display:block; }
+  .ca-tb-main{ border-right:0; border-bottom:1px solid var(--border); padding:16px; }
+  .ca-tb-fields{ overflow-x:auto; }
+  .ca-tb-field{ flex:1; min-width:100px; }
+  .ca-cards{ gap:10px; }
+  .ca-card{ padding:14px; }
+  .ca-card-value{ font-size:19px; overflow-wrap:anywhere; }
+  .ca-panel-head{ padding:13px 14px; align-items:flex-start; }
+  .ca-panel-body{ padding:14px; }
+  .ca-toolbar{ align-items:stretch; }
+  .ca-search{ flex:1 1 100%; max-width:none; }
+  .ca-table{ min-width:680px; }
+  .ca-panel-body:has(>.ca-table), .ca-panel-body:has(table){ overflow-x:auto; }
+}
+
 `;
 
 /* ---------------------------------------------------------------------- */
@@ -565,11 +649,6 @@ function computeJobFinancials(job, txns, cashEntries = []) {
     (s, b) => s + (Number(b.actualCost) || 0),
     0
   );
-  // รายการที่ผูกกับงานทั้งหมดจะเพิ่มเข้าต้นทุนจริงของงาน
-  // รวมถึงรายการประเภท "รายรับ" ที่ใช้บันทึกเงินเบิก/เงินถอนจากงาน
-  const linkedCashCost = cashEntries
-    .filter((e) => e.jobId === job.id)
-    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const linkedExpense = cashEntries
     .filter((e) => e.jobId === job.id && e.type === 'expense')
     .reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -580,7 +659,7 @@ function computeJobFinancials(job, txns, cashEntries = []) {
     (s, b) => s + (Number(b.budgetedCost) || 0),
     0
   );
-  const totalActual = materialActual + otherActual + linkedCashCost;
+  const totalActual = materialActual + otherActual + linkedExpense;
   const revenue = Number(job.revenue) || 0;
   const actualProfit = revenue - totalActual;
   const budgetProfit = revenue - totalBudget;
@@ -589,7 +668,6 @@ function computeJobFinancials(job, txns, cashEntries = []) {
     materialActual,
     otherActual,
     linkedExpense,
-    linkedCashCost,
     collectedIncome,
     totalBudget,
     totalActual,
@@ -4399,40 +4477,21 @@ function JobDetail({
             <td className="ca-num">-</td>
             <td>-</td>
           </tr>
-          {linkedCash.map((e) => {
-            const isIncome = e.type === 'income';
-            return (
-              <tr key={`cash-cost-${e.id}`}>
-                <td>
-                  <Badge tone={isIncome ? 'green' : 'red'}>
-                    {isIncome ? 'เงินเบิก/ถอนจากงาน' : 'รายจ่ายเพิ่มเติม'}
-                  </Badge>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
-                    {e.category || 'ไม่ระบุหมวด'}
-                  </div>
-                </td>
-                <td>
-                  {e.description || '-'}
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
-                    วันที่ {fmtDate(e.date)}
-                  </div>
-                </td>
-                <td className="ca-num">-</td>
-                <td>-</td>
-                <td className="ca-num">-</td>
-                <td className="ca-num">-</td>
-                <td className="ca-num" style={{ fontWeight: 700 }}>
-                  {fmtTHB(e.amount)}
-                </td>
-                <td className="ca-num">-</td>
-                <td style={{ minWidth: 170, whiteSpace: 'pre-wrap' }}>
-                  {e.note || (isIncome
-                    ? 'บันทึกเป็นเงินเบิก/ถอนจากงาน จึงนับเพิ่มเป็นต้นทุน'
-                    : 'เชื่อมจากเมนูรายรับ-รายจ่าย')}
-                </td>
-              </tr>
-            );
-          })}
+          {f.linkedExpense > 0 && (
+            <tr>
+              <td>
+                <Badge tone="red">รายจ่าย (บัญชี)</Badge>
+              </td>
+              <td>เชื่อมจากเมนูรายรับ-รายจ่าย</td>
+              <td className="ca-num">-</td>
+              <td>-</td>
+              <td className="ca-num">-</td>
+              <td className="ca-num">-</td>
+              <td className="ca-num">{fmtTHB(f.linkedExpense)}</td>
+              <td className="ca-num">-</td>
+              <td>-</td>
+            </tr>
+          )}
         </tbody>
       </table>
 
@@ -4499,12 +4558,109 @@ function JobDetail({
       )}
 
       {linkedCash.length > 0 && (
-        <div className="ca-hint" style={{ marginBottom: 18, marginTop: 8 }}>
-          รายการบัญชีที่เชื่อมกับงานนี้ {linkedCash.length} รายการ ·
-          รวมเพิ่มต้นทุน {fmtTHB(f.linkedCashCost)} ·
-          เงินเบิก/รายรับที่บันทึกไว้ {fmtTHB(f.collectedIncome)}
-        </div>
+        <>
+          <div
+            className="ca-panel-title"
+            style={{ fontSize: 14, marginBottom: 8 }}
+          >
+            <Wallet size={15} /> รายรับ-รายจ่ายที่เชื่อมกับงานนี้
+          </div>
+          <table className="ca-table" style={{ marginBottom: 18 }}>
+            <thead>
+              <tr>
+                <th>วันที่</th>
+                <th>ประเภท</th>
+                <th>รายละเอียด</th>
+                <th>จำนวนเงิน</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linkedCash.map((e) => (
+                <tr key={e.id}>
+                  <td className="ca-mono">{fmtDate(e.date)}</td>
+                  <td>
+                    {e.type === 'income' ? (
+                      <Badge tone="green">รายรับ</Badge>
+                    ) : (
+                      <Badge tone="red">รายจ่าย</Badge>
+                    )}
+                  </td>
+                  <td>{e.description || '-'}</td>
+                  <td
+                    className="ca-num"
+                    style={{
+                      color:
+                        e.type === 'income' ? 'var(--green)' : 'var(--red)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    {e.type === 'income' ? '+' : '-'}
+                    {fmtTHB(e.amount)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div className="ca-hint" style={{ marginBottom: 18, marginTop: -8 }}>
+            เก็บเงินจริงแล้ว {fmtTHB(f.collectedIncome)} จากรายได้ทั้งหมด{' '}
+            {fmtTHB(f.revenue)}
+          </div>
+        </>
       )}
+
+      <div className="ca-divider ca-no-print" />
+      <div className="ca-no-print">
+        <div
+          className="ca-panel-title"
+          style={{ fontSize: 14, marginBottom: 10 }}
+        >
+          <Camera size={15} /> รูปภาพหน้างาน
+        </div>
+        <input
+          type="file"
+          accept="image/*"
+          multiple
+          className="ca-file-input"
+          onChange={handleFiles}
+          disabled={uploading}
+          style={{ marginBottom: 12 }}
+        />
+        {uploading && (
+          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
+            กำลังประมวลผลรูปภาพ...
+          </div>
+        )}
+        {uploadError && <div className="ca-upload-error">{uploadError}</div>}
+        {loadingPhotos ? (
+          <div style={{ color: 'var(--muted)', fontSize: 13 }}>
+            กำลังโหลดรูปภาพ...
+          </div>
+        ) : photos.length === 0 ? (
+          <EmptyState
+            icon={ImageIcon}
+            text="ยังไม่มีรูปภาพหน้างาน — เลือกไฟล์รูปด้านบนเพื่อเพิ่ม"
+          />
+        ) : (
+          <div className="ca-photo-grid">
+            {photos.map((p) => (
+              <div className="ca-photo-thumb" key={p.id}>
+                <img
+                  src={p.dataUrl}
+                  onClick={() => setLightbox(p.dataUrl)}
+                  alt="รูปหน้างาน"
+                />
+                <button
+                  className="ca-photo-remove"
+                  title="ลบรูปภาพ"
+                  onClick={() => removePhoto(p.id)}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {lightbox && (
         <div
