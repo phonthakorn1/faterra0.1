@@ -27,6 +27,8 @@ import {
   Link2,
   Wallet,
   Receipt,
+  Store,
+  Tag,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -560,6 +562,7 @@ const STORAGE_KEYS = {
   equipTxns: 'equipment-transactions',
   settings: 'company-settings',
   cashEntries: 'cash-entries',
+  supplierPrices: 'supplier-prices',
 };
 
 // Running outside claude.ai, so persistence uses the browser's localStorage
@@ -2536,6 +2539,7 @@ function QuotationsView({
   saveJobs,
   settings,
   onOpenSettings,
+  supplierPrices = [],
 }) {
   const [editQuote, setEditQuote] = useState(null);
   const [showForm, setShowForm] = useState(false);
@@ -2756,6 +2760,7 @@ function QuoteForm({
   stock,
   settings,
   onOpenSettings,
+  supplierPrices = [],
   onCancel,
   onSave,
 }) {
@@ -2786,6 +2791,20 @@ function QuoteForm({
         });
     }
     setQ({ ...q, items: [...q.items, base] });
+  }
+  function addSupplierPrice(priceId) {
+    const price = supplierPrices.find((x) => x.id === priceId);
+    if (!price) return;
+    const unitCost = Number(price.price) || 0;
+    const item = {
+      id: uid(), type: 'material',
+      description: price.material,
+      unit: price.unit || 'ชิ้น', qty: 1,
+      unitCost, unitPrice: unitCost,
+      supplierPriceId: price.id,
+      supplierName: price.supplier,
+    };
+    setQ({ ...q, items: [...q.items, item] });
   }
   function updateItem(id, patch) {
     setQ({
@@ -2924,6 +2943,25 @@ function QuoteForm({
               </option>
             ))}
           </select>
+          {supplierPrices.length > 0 && (
+            <select
+              className="ca-select"
+              style={{ width: 260 }}
+              defaultValue=""
+              onChange={(e) => {
+                if (e.target.value) addSupplierPrice(e.target.value);
+                e.target.value = '';
+              }}
+              title="เลือกวัสดุจากรายการเปรียบเทียบราคา"
+            >
+              <option value="">+ เลือกวัสดุจากเทียบราคา...</option>
+              {[...supplierPrices].sort((a, b) => Number(a.price) - Number(b.price)).map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.material} — {p.supplier} — {fmtTHB(p.price)}/{p.unit || 'ชิ้น'}
+                </option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             className="ca-btn ca-btn-outline ca-btn-sm"
@@ -5042,12 +5080,69 @@ function CashEntryForm({ entry, jobs, onCancel, onSave }) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Supplier price comparison                                              */
+/* ---------------------------------------------------------------------- */
+function SupplierPricesView({ prices, savePrices }) {
+  const blank = () => ({ id: uid(), material: '', supplier: '', price: '', unit: 'ชิ้น', date: todayISO(), phone: '', link: '', notes: '' });
+  const [form, setForm] = useState(null);
+  const [query, setQuery] = useState('');
+  const [sortBy, setSortBy] = useState('material');
+  const filtered = prices.filter((p) => `${p.material} ${p.supplier} ${p.notes || ''}`.toLowerCase().includes(query.toLowerCase()));
+  const grouped = {};
+  filtered.forEach((p) => { const k = (p.material || '').trim().toLowerCase(); if (!grouped[k]) grouped[k] = []; grouped[k].push(p); });
+  Object.values(grouped).forEach((rows) => rows.sort((a, b) => Number(a.price) - Number(b.price)));
+  const cheapestCount = Object.values(grouped).filter((rows) => rows.length > 0).length;
+  function saveForm() {
+    if (!form || !form.material.trim() || !form.supplier.trim() || form.price === '' || Number(form.price) < 0) return;
+    const exists = prices.some((p) => p.id === form.id);
+    savePrices(exists ? prices.map((p) => p.id === form.id ? { ...form, price: Number(form.price) } : p) : [...prices, { ...form, price: Number(form.price) }]);
+    setForm(null);
+  }
+  function remove(id) { savePrices(prices.filter((p) => p.id !== id)); }
+  const rows = [...filtered].sort((a, b) => sortBy === 'price' ? Number(a.price) - Number(b.price) : sortBy === 'supplier' ? a.supplier.localeCompare(b.supplier, 'th') : a.material.localeCompare(b.material, 'th'));
+  return <div>
+    <TitleBlock eyebrow="จัดซื้อและควบคุมต้นทุน" title="เปรียบเทียบราคาวัสดุ" fields={[["รายการราคา", prices.length + ' ราคา'], ["ชนิดวัสดุ", new Set(prices.map(p => (p.material || '').trim().toLowerCase()).filter(Boolean)).size + ' รายการ']]} />
+    <div className="ca-hint" style={{ marginBottom: 16 }}><Tag size={15} style={{ verticalAlign: 'middle', marginRight: 6 }} />บันทึกราคาจากหลายร้าน แล้วระบบจะไฮไลต์ราคาต่ำสุดของวัสดุแต่ละชนิดให้ ใช้เลือกวัสดุไปใส่ในใบเสนอราคาได้ โดยไม่แก้ข้อมูลคลังพัสดุเดิม</div>
+    <div className="ca-toolbar">
+      <div className="ca-search"><Search size={15} /><input className="ca-input" placeholder="ค้นหาวัสดุหรือร้านค้า..." value={query} onChange={e => setQuery(e.target.value)} /></div>
+      <select className="ca-select" value={sortBy} onChange={e => setSortBy(e.target.value)}><option value="material">เรียงตามวัสดุ</option><option value="price">เรียงราคาถูกไปแพง</option><option value="supplier">เรียงตามร้านค้า</option></select>
+      <div style={{ flex: 1 }} />
+      <button className="ca-btn ca-btn-primary" onClick={() => setForm(blank())}><Plus size={15} /> เพิ่มราคาจากร้านค้า</button>
+    </div>
+    <div className="ca-panel">
+      <div className="ca-panel-head"><div className="ca-panel-title"><Store size={16} /> ราคาวัสดุจากร้านค้า</div><span style={{ color: 'var(--muted)', fontSize: 12 }}>ราคาต่ำสุดจะถูกเน้น</span></div>
+      <div className="ca-panel-body" style={{ padding: 0 }}>
+      {rows.length === 0 ? <div style={{ padding: 22 }}><EmptyState icon={Store} text="ยังไม่มีราคาวัสดุ เพิ่มราคาจากร้านค้าเพื่อเริ่มเปรียบเทียบ" action={<button className="ca-btn ca-btn-primary ca-btn-sm" onClick={() => setForm(blank())}><Plus size={14} /> เพิ่มรายการแรก</button>} /></div> :
+        <table className="ca-table"><thead><tr><th>วัสดุ</th><th>ร้านค้า</th><th>ราคา/หน่วย</th><th>วันที่อัปเดต</th><th>ติดต่อ/ลิงก์</th><th>หมายเหตุ</th><th></th></tr></thead><tbody>
+        {rows.map(p => { const same = grouped[(p.material || '').trim().toLowerCase()] || []; const cheapest = same.length && Number(p.price) === Math.min(...same.map(x => Number(x.price) || 0)); return <tr key={p.id} style={{ background: cheapest ? 'var(--green-bg)' : undefined }}>
+          <td style={{ fontWeight: 600 }}>{p.material}{cheapest && <div style={{ marginTop: 4 }}><Badge tone="green">ราคาต่ำสุด</Badge></div>}</td>
+          <td>{p.supplier}{p.phone && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.phone}</div>}</td>
+          <td className="ca-num" style={{ fontWeight: 700, color: cheapest ? 'var(--green)' : 'var(--text)' }}>{fmtTHB(p.price)} <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>/{p.unit || 'ชิ้น'}</span></td>
+          <td>{p.date ? fmtDate(p.date) : '-'}</td>
+          <td>{p.link ? <a href={p.link} target="_blank" rel="noreferrer" style={{ color: 'var(--amber-dark)' }}>เปิดลิงก์ร้าน</a> : '-'}</td>
+          <td>{p.notes || '-'}</td>
+          <td><div style={{ display: 'flex', gap: 4 }}><button className="ca-icon-btn" title="แก้ไข" onClick={() => setForm({ ...p })}><Pencil size={14} /></button><button className="ca-icon-btn" title="ลบ" onClick={() => { if (window.confirm('ลบราคานี้ใช่หรือไม่?')) remove(p.id); }}><Trash2 size={14} /></button></div></td>
+        </tr>; })}
+        </tbody></table>}
+      </div>
+    </div>
+    {form && <Modal title={prices.some(p => p.id === form.id) ? 'แก้ไขราคาวัสดุ' : 'เพิ่มราคาจากร้านค้า'} onClose={() => setForm(null)} footer={<><button className="ca-btn ca-btn-outline" onClick={() => setForm(null)}>ยกเลิก</button><button className="ca-btn ca-btn-primary" onClick={saveForm}>บันทึกราคา</button></>}>
+      <div className="ca-row"><Field label="ชื่อวัสดุ *"><input className="ca-input" placeholder="เช่น ปูนซีเมนต์ 50 กก." value={form.material} onChange={e => setForm({ ...form, material: e.target.value })} /></Field><Field label="ชื่อร้านค้า *"><input className="ca-input" placeholder="ชื่อร้าน/ผู้จำหน่าย" value={form.supplier} onChange={e => setForm({ ...form, supplier: e.target.value })} /></Field></div>
+      <div className="ca-row"><Field label="ราคา/หน่วย (บาท) *"><input type="number" min="0" step="any" className="ca-input" value={form.price} onChange={e => setForm({ ...form, price: e.target.value })} /></Field><Field label="หน่วย"><input className="ca-input" placeholder="ชิ้น, เส้น, ถุง, ตร.ม." value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} /></Field><Field label="วันที่ราคา"><input type="date" className="ca-input" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} /></Field></div>
+      <div className="ca-row"><Field label="เบอร์โทร/ช่องทางติดต่อ"><input className="ca-input" value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })} /></Field><Field label="ลิงก์สินค้า/ร้านค้า"><input className="ca-input" placeholder="https://..." value={form.link || ''} onChange={e => setForm({ ...form, link: e.target.value })} /></Field></div>
+      <Field label="หมายเหตุ"><textarea className="ca-input" rows={3} value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })} /></Field>
+    </Modal>}
+  </div>;
+}
+
+/* ---------------------------------------------------------------------- */
 /* App shell                                                               */
 /* ---------------------------------------------------------------------- */
 
 const NAV = [
   { id: 'dashboard', label: 'แดชบอร์ด', icon: LayoutDashboard },
   { id: 'stock', label: 'คลังพัสดุ', icon: Boxes },
+  { id: 'supplierPrices', label: 'เปรียบเทียบราคาวัสดุ', icon: Store },
   { id: 'quotes', label: 'ใบเสนอราคา', icon: FileText },
   { id: 'jobs', label: 'งาน & กำไรขาดทุน', icon: Briefcase },
   { id: 'cashflow', label: 'รายรับ-รายจ่าย', icon: Wallet },
@@ -5064,11 +5159,12 @@ export default function ContractorApp() {
   const [equipTxns, setEquipTxns] = useState([]);
   const [settings, setSettings] = useState({});
   const [cashEntries, setCashEntries] = useState([]);
+  const [supplierPrices, setSupplierPrices] = useState([]);
   const [showSettings, setShowSettings] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const [s, q, j, t, eq, et, cfg, ce] = await Promise.all([
+      const [s, q, j, t, eq, et, cfg, ce, sp] = await Promise.all([
         storageLoad(STORAGE_KEYS.stock),
         storageLoad(STORAGE_KEYS.quotes),
         storageLoad(STORAGE_KEYS.jobs),
@@ -5077,6 +5173,7 @@ export default function ContractorApp() {
         storageLoad(STORAGE_KEYS.equipTxns),
         storageLoad(STORAGE_KEYS.settings, {}),
         storageLoad(STORAGE_KEYS.cashEntries),
+        storageLoad(STORAGE_KEYS.supplierPrices),
       ]);
       let eqFinal = eq;
       for (const batch of SEED_EQUIPMENT_BATCHES) {
@@ -5098,6 +5195,7 @@ export default function ContractorApp() {
       setEquipTxns(et);
       setSettings(cfg);
       setCashEntries(ce);
+      setSupplierPrices(sp);
       setLoading(false);
     })();
   }, []);
@@ -5133,6 +5231,10 @@ export default function ContractorApp() {
   const saveCashEntries = useCallback((next) => {
     setCashEntries(next);
     storageSave(STORAGE_KEYS.cashEntries, next);
+  }, []);
+  const saveSupplierPrices = useCallback((next) => {
+    setSupplierPrices(next);
+    storageSave(STORAGE_KEYS.supplierPrices, next);
   }, []);
 
   return (
@@ -5201,6 +5303,8 @@ export default function ContractorApp() {
             equipTxns={equipTxns}
             saveEquipTxns={saveEquipTxns}
           />
+        ) : tab === 'supplierPrices' ? (
+          <SupplierPricesView prices={supplierPrices} savePrices={saveSupplierPrices} />
         ) : tab === 'quotes' ? (
           <QuotationsView
             quotes={quotes}
@@ -5210,6 +5314,7 @@ export default function ContractorApp() {
             saveJobs={saveJobs}
             settings={settings}
             onOpenSettings={() => setShowSettings(true)}
+            supplierPrices={supplierPrices}
           />
         ) : tab === 'jobs' ? (
           <JobsView
