@@ -565,6 +565,11 @@ function computeJobFinancials(job, txns, cashEntries = []) {
     (s, b) => s + (Number(b.actualCost) || 0),
     0
   );
+  // รายการที่ผูกกับงานทั้งหมดจะเพิ่มเข้าต้นทุนจริงของงาน
+  // รวมถึงรายการประเภท "รายรับ" ที่ใช้บันทึกเงินเบิก/เงินถอนจากงาน
+  const linkedCashCost = cashEntries
+    .filter((e) => e.jobId === job.id)
+    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
   const linkedExpense = cashEntries
     .filter((e) => e.jobId === job.id && e.type === 'expense')
     .reduce((s, e) => s + (Number(e.amount) || 0), 0);
@@ -575,23 +580,19 @@ function computeJobFinancials(job, txns, cashEntries = []) {
     (s, b) => s + (Number(b.budgetedCost) || 0),
     0
   );
-  const totalActual = materialActual + otherActual + linkedExpense;
-  // Keep the original job revenue as the contract/budget reference.
-  // Once income transactions are linked to this job, use their sum as the
-  // actual revenue so cash entries affect this job's actual profit/loss.
-  const contractRevenue = Number(job.revenue) || 0;
-  const revenue = collectedIncome > 0 ? collectedIncome : contractRevenue;
+  const totalActual = materialActual + otherActual + linkedCashCost;
+  const revenue = Number(job.revenue) || 0;
   const actualProfit = revenue - totalActual;
-  const budgetProfit = contractRevenue - totalBudget;
+  const budgetProfit = revenue - totalBudget;
   const margin = revenue ? (actualProfit / revenue) * 100 : 0;
   return {
     materialActual,
     otherActual,
     linkedExpense,
+    linkedCashCost,
     collectedIncome,
     totalBudget,
     totalActual,
-    contractRevenue,
     revenue,
     actualProfit,
     budgetProfit,
@@ -3785,7 +3786,6 @@ function JobsView({
         <JobForm
           job={editJob}
           stock={stock}
-          txns={txns}
           onCancel={() => setShowForm(false)}
           onSave={submit}
         />
@@ -3810,7 +3810,7 @@ function JobsView({
   );
 }
 
-function JobForm({ job, stock, txns = [], onCancel, onSave }) {
+function JobForm({ job, stock, onCancel, onSave }) {
   const [j, setJ] = useState({
     ...job,
     workDays: job.workDays ?? '',
@@ -3877,16 +3877,10 @@ function JobForm({ job, stock, txns = [], onCancel, onSave }) {
     }));
   }
 
-  // Per-item totals include linked warehouse issues for THIS job only.
-  // Existing fields and stored records are preserved; these are calculated for display.
-  const actualBudgetItemsTotal = j.budgetItems.reduce((sum, b) => {
-    if (b.stockId) {
-      return sum + txns
-        .filter((t) => t.jobId === j.id && t.type === 'issue' && t.stockId === b.stockId)
-        .reduce((itemSum, t) => itemSum + (Number(t.qty) || 0) * (Number(t.unitCost) || 0), 0);
-    }
-    return sum + (Number(b.actualCost) || ((Number(b.actualQty) || 0) * (Number(b.actualUnitCost) || 0)));
-  }, 0);
+  const actualBudgetItemsTotal = j.budgetItems.reduce(
+    (sum, b) => sum + (Number(b.actualCost) || 0),
+    0
+  );
 
   return (
     <Modal
@@ -4118,13 +4112,13 @@ function JobForm({ job, stock, txns = [], onCancel, onSave }) {
                     />
                   </td>
                   <td className="ca-num" style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {fmtTHB(
-                      b.stockId
-                        ? txns
-                            .filter((t) => t.jobId === j.id && t.type === 'issue' && t.stockId === b.stockId)
-                            .reduce((sum, t) => sum + (Number(t.qty) || 0) * (Number(t.unitCost) || 0), 0)
-                        : ((Number(b.actualQty) || 0) * (Number(b.actualUnitCost) || 0) || Number(b.actualCost) || 0)
-                    )}
+                    {b.stockId
+                      ? 'คิดจากสต๊อก'
+                      : fmtTHB(
+                          (Number(b.actualQty) || 0) *
+                          (Number(b.actualUnitCost) || 0) ||
+                          Number(b.actualCost) || 0
+                        )}
                   </td>
                   <td>
                     <input
@@ -4343,7 +4337,7 @@ function JobDetail({
           {job.budgetItems.map((b) => {
             const linkedActual = b.stockId
               ? materialTxns
-                  .filter((t) => t.jobId === job.id && t.stockId === b.stockId)
+                  .filter((t) => t.stockId === b.stockId)
                   .reduce((sum, t) => sum + (Number(t.qty) || 0) * (Number(t.unitCost) || 0), 0)
               : (Number(b.actualCost) || 0);
             const diff = (Number(b.budgetedCost) || 0) - linkedActual;
@@ -4392,16 +4386,6 @@ function JobDetail({
               </tr>
             );
           })}
-          <tr style={{ fontWeight: 700, background: 'var(--panel-muted, #F7F5F0)' }}>
-            <td colSpan={5}>รวมรายการต้นทุนด้านบน</td>
-            <td className="ca-num">{fmtTHB((job.budgetItems || []).reduce((sum, b) => sum + (Number(b.budgetedCost) || 0), 0))}</td>
-            <td className="ca-num">{fmtTHB((job.budgetItems || []).reduce((sum, b) => {
-              if (b.stockId) return sum + materialTxns.filter((t) => t.jobId === job.id && t.stockId === b.stockId).reduce((sub, t) => sub + (Number(t.qty) || 0) * (Number(t.unitCost) || 0), 0);
-              return sum + (Number(b.actualCost) || 0);
-            }, 0))}</td>
-            <td className="ca-num">-</td>
-            <td>-</td>
-          </tr>
           <tr>
             <td>
               <Badge tone="amber">วัสดุ (จากคลัง)</Badge>
@@ -4415,16 +4399,13 @@ function JobDetail({
             <td className="ca-num">-</td>
             <td>-</td>
           </tr>
-          {/* แสดงรายการเงินสดที่ผูกกับงานเป็นรายบรรทัดในตารางกำไร-ขาดทุน
-              ดึงจาก cashEntries โดยตรง ไม่สร้าง budgetItems ซ้ำ จึงแก้ไข/ลบแล้วอัปเดตทันที */}
           {linkedCash.map((e) => {
             const isIncome = e.type === 'income';
-            const amount = Number(e.amount) || 0;
             return (
-              <tr key={`cash-${e.id}`} style={{ background: isIncome ? 'rgba(46,125,91,.04)' : 'rgba(179,38,30,.03)' }}>
+              <tr key={`cash-cost-${e.id}`}>
                 <td>
                   <Badge tone={isIncome ? 'green' : 'red'}>
-                    {isIncome ? 'รายรับ' : 'รายจ่าย'}
+                    {isIncome ? 'เงินเบิก/ถอนจากงาน' : 'รายจ่ายเพิ่มเติม'}
                   </Badge>
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 3 }}>
                     {e.category || 'ไม่ระบุหมวด'}
@@ -4440,11 +4421,15 @@ function JobDetail({
                 <td>-</td>
                 <td className="ca-num">-</td>
                 <td className="ca-num">-</td>
-                <td className="ca-num" style={{ color: isIncome ? 'var(--green)' : 'var(--red)', fontWeight: 700 }}>
-                  {isIncome ? '+' : '-'}{fmtTHB(amount)}
+                <td className="ca-num" style={{ fontWeight: 700 }}>
+                  {fmtTHB(e.amount)}
                 </td>
                 <td className="ca-num">-</td>
-                <td style={{ minWidth: 170, whiteSpace: 'pre-wrap' }}>{e.note || 'เชื่อมจากเมนูรายรับ-รายจ่าย'}</td>
+                <td style={{ minWidth: 170, whiteSpace: 'pre-wrap' }}>
+                  {e.note || (isIncome
+                    ? 'บันทึกเป็นเงินเบิก/ถอนจากงาน จึงนับเพิ่มเป็นต้นทุน'
+                    : 'เชื่อมจากเมนูรายรับ-รายจ่าย')}
+                </td>
               </tr>
             );
           })}
@@ -4514,109 +4499,12 @@ function JobDetail({
       )}
 
       {linkedCash.length > 0 && (
-        <>
-          <div
-            className="ca-panel-title"
-            style={{ fontSize: 14, marginBottom: 8 }}
-          >
-            <Wallet size={15} /> รายรับ-รายจ่ายที่เชื่อมกับงานนี้
-          </div>
-          <table className="ca-table" style={{ marginBottom: 18 }}>
-            <thead>
-              <tr>
-                <th>วันที่</th>
-                <th>ประเภท</th>
-                <th>รายละเอียด</th>
-                <th>จำนวนเงิน</th>
-              </tr>
-            </thead>
-            <tbody>
-              {linkedCash.map((e) => (
-                <tr key={e.id}>
-                  <td className="ca-mono">{fmtDate(e.date)}</td>
-                  <td>
-                    {e.type === 'income' ? (
-                      <Badge tone="green">รายรับ</Badge>
-                    ) : (
-                      <Badge tone="red">รายจ่าย</Badge>
-                    )}
-                  </td>
-                  <td>{e.description || '-'}</td>
-                  <td
-                    className="ca-num"
-                    style={{
-                      color:
-                        e.type === 'income' ? 'var(--green)' : 'var(--red)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    {e.type === 'income' ? '+' : '-'}
-                    {fmtTHB(e.amount)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="ca-hint" style={{ marginBottom: 18, marginTop: -8 }}>
-            เก็บเงินจริงแล้ว {fmtTHB(f.collectedIncome)} จากรายได้ทั้งหมด{' '}
-            {fmtTHB(f.revenue)}
-          </div>
-        </>
-      )}
-
-      <div className="ca-divider ca-no-print" />
-      <div className="ca-no-print">
-        <div
-          className="ca-panel-title"
-          style={{ fontSize: 14, marginBottom: 10 }}
-        >
-          <Camera size={15} /> รูปภาพหน้างาน
+        <div className="ca-hint" style={{ marginBottom: 18, marginTop: 8 }}>
+          รายการบัญชีที่เชื่อมกับงานนี้ {linkedCash.length} รายการ ·
+          รวมเพิ่มต้นทุน {fmtTHB(f.linkedCashCost)} ·
+          เงินเบิก/รายรับที่บันทึกไว้ {fmtTHB(f.collectedIncome)}
         </div>
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          className="ca-file-input"
-          onChange={handleFiles}
-          disabled={uploading}
-          style={{ marginBottom: 12 }}
-        />
-        {uploading && (
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 8 }}>
-            กำลังประมวลผลรูปภาพ...
-          </div>
-        )}
-        {uploadError && <div className="ca-upload-error">{uploadError}</div>}
-        {loadingPhotos ? (
-          <div style={{ color: 'var(--muted)', fontSize: 13 }}>
-            กำลังโหลดรูปภาพ...
-          </div>
-        ) : photos.length === 0 ? (
-          <EmptyState
-            icon={ImageIcon}
-            text="ยังไม่มีรูปภาพหน้างาน — เลือกไฟล์รูปด้านบนเพื่อเพิ่ม"
-          />
-        ) : (
-          <div className="ca-photo-grid">
-            {photos.map((p) => (
-              <div className="ca-photo-thumb" key={p.id}>
-                <img
-                  src={p.dataUrl}
-                  onClick={() => setLightbox(p.dataUrl)}
-                  alt="รูปหน้างาน"
-                />
-                <button
-                  className="ca-photo-remove"
-                  title="ลบรูปภาพ"
-                  onClick={() => removePhoto(p.id)}
-                >
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
       {lightbox && (
         <div
